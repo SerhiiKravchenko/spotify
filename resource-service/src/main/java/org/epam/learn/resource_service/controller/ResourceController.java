@@ -15,8 +15,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.constraints.NotNull;
-
 @RestController
 @RequestMapping("/resources")
 public class ResourceController {
@@ -33,12 +31,12 @@ public class ResourceController {
     }
 
     @GetMapping(value = "/{id}", produces = "audio/mpeg")
-    public ResponseEntity<byte[]> download(@PathVariable("id") Long fileId) {
-        return ResponseEntity.ok(resourceService.download(fileId));
+    public ResponseEntity<byte[]> download(@PathVariable("id") Long id) {
+        return ResponseEntity.ok(resourceService.download(id));
     }
 
     @DeleteMapping
-    public ResponseEntity<Map<String, List<Long>>> delete(@RequestParam("id") List<String> fileIds) {
-        return ResponseEntity.ok(resourceService.delete(fileIds));
+    public ResponseEntity<Map<String, List<Long>>> delete(@RequestParam("id") List<String> id) {
+        return ResponseEntity.ok(resourceService.delete(id));
     }
 }

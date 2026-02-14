@@ -38,7 +38,7 @@ public class SongController {
     }
 
     @DeleteMapping
-    public ResponseEntity<Map<String, List<Long>>> deleteSongsMetadata(@RequestParam List<String> id) {
+    public ResponseEntity<Map<String, List<Long>>> deleteSongsMetadata(@RequestParam("id") List<String> id) {
         return ResponseEntity.ok(songService.deleteSongsByResourceId(id));
     }
 }
