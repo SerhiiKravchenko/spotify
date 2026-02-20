@@ -1,0 +1,6 @@
+DROP TABLE IF EXISTS files;
+
+CREATE TABLE IF NOT EXISTS files (
+    id BIGSERIAL PRIMARY KEY,
+    file BYTEA
+);
