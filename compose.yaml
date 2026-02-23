@@ -21,6 +21,30 @@ services:
     volumes:
       - ./init-scripts/song-db:/docker-entrypoint-initdb.d
 
+  eureka-server:
+    build:
+      context: ./eureka
+      dockerfile: Dockerfile
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
+      EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    depends_on:
+      - eureka-server
+
   resource-service:
     build:
       context: ./resource-service
@@ -28,11 +52,14 @@ services:
     ports:
       - "8071:8071"
     environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       SPRING_DATASOURCE_URL: ${RESOURCE_DB_URL}
       SPRING_DATASOURCE_USERNAME: ${RESOURCE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${RESOURCE_DB_PASSWORD}
       SONG_SERVICE_URL: ${SONG_SERVICE_URL}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
     depends_on:
+      - eureka-server
       - resource-db
       - song-service
 
@@ -40,11 +67,17 @@ services:
     build:
       context: ./song-service
       dockerfile: Dockerfile
+    deploy:
+      replicas: 2
     ports:
-      - "8072:8072"
+      - "8082-8083:8082"
     environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       SPRING_DATASOURCE_URL: ${SONG_DB_URL}
       SPRING_DATASOURCE_USERNAME: ${SONG_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${SONG_DB_PASSWORD}
     depends_on:
+      - eureka-server
       - song-db
+
