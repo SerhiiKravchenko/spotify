@@ -82,6 +82,19 @@ services:
       - song-service
       - localstack
 
+  resource-processor:
+    build:
+      context: ./resource-processor
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    depends_on:
+      - eureka-server
+      - resource-service
+
   song-service:
     build:
       context: ./song-service
