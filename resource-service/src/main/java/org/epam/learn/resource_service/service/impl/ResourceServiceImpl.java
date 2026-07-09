@@ -3,18 +3,19 @@ package org.epam.learn.resource_service.service.impl;
 import java.net.URI;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import org.epam.learn.resource_service.exception.ResourceNotFoundException;
 import org.epam.learn.resource_service.model.MetadataInfo;
-import org.epam.learn.resource_service.model.Mp3File;
+import org.epam.learn.resource_service.model.Mp3FileUrl;
 import org.epam.learn.resource_service.repository.ResourceRepository;
 import org.epam.learn.resource_service.service.MetadataService;
 import org.epam.learn.resource_service.service.ResourceService;
+import org.epam.learn.resource_service.service.S3Service;
 import org.epam.learn.resource_service.utility.Utility;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -34,32 +35,35 @@ public class ResourceServiceImpl implements ResourceService {
 
     private final ResourceRepository resourceRepository;
     private final MetadataService metadataService;
+    private final S3Service s3Service;
 
 
-    public ResourceServiceImpl(ResourceRepository resourceRepository, MetadataService metadataService) {
+    public ResourceServiceImpl(ResourceRepository resourceRepository, MetadataService metadataService, S3Service s3Service) {
         this.resourceRepository = resourceRepository;
         this.metadataService = metadataService;
+        this.s3Service = s3Service;
     }
 
     @Override
     @Transactional
     public Map<String, Long> upload(byte[] file) {
-        Mp3File mp3File = new Mp3File(file);
-        Mp3File saved = resourceRepository.save(mp3File);
+        Mp3FileUrl mp3FileUrl = s3Service.uploadFile(file);
+        Mp3FileUrl savedToDb = resourceRepository.save(mp3FileUrl);
         MetadataInfo metadataFromMp3File = metadataService.getMetadataFromMp3File(file);
-        metadataFromMp3File.setId(saved.getId());
+        metadataFromMp3File.setId(savedToDb.getId());
         sendMetadata(metadataFromMp3File);
 
-        return Map.of(SAVED_ID_KEY, saved.getId());
+        return Map.of(SAVED_ID_KEY, savedToDb.getId());
     }
 
     @Override
     public byte[] download(Long fileId) {
         Utility.isValidId(fileId);
 
-        return resourceRepository.findById(fileId)
-                .orElseThrow(() -> new ResourceNotFoundException(String.format(RESOURCE_NOT_FOUND_MESSAGE, fileId)))
-                .getFile();
+        UUID key = resourceRepository.findById(fileId).map(Mp3FileUrl::getKey)
+                .orElseThrow(() -> new ResourceNotFoundException(String.format(RESOURCE_NOT_FOUND_MESSAGE, fileId)));
+
+        return s3Service.downloadFile(key.toString());
     }
 
     @Override
@@ -69,6 +73,7 @@ public class ResourceServiceImpl implements ResourceService {
         List<Long> deleted = fileIds.stream()
                 .map(Long::parseLong)
                 .filter(resourceRepository::existsById)
+                .peek(id -> s3Service.deleteFile(resourceRepository.findById(id).get().getKey().toString()))
                 .peek(resourceRepository::deleteById)
                 .toList();
 
@@ -96,7 +101,7 @@ public class ResourceServiceImpl implements ResourceService {
 
         RestClient restClient = RestClient.create();
 
-        ResponseEntity<Map<String, List<Long>>> ids = restClient.delete()
+        restClient.delete()
                 .uri(URI.create(songsServiceUrl + ID_PATH_PARAMETER + String.join(COMMA_DELIMITER, deleted.stream()
                         .map(String::valueOf)
                         .toList())))
