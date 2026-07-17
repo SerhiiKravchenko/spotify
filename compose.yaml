@@ -21,6 +21,20 @@ services:
     volumes:
       - ./init-scripts/song-db:/docker-entrypoint-initdb.d
 
+  localstack:
+    image: localstack/localstack-pro:dev
+    ports:
+      - "4566:4566"
+    environment:
+      LOCALSTACK_AUTH_TOKEN: ${LOCALSTACK_AUTH_TOKEN:?}
+      LOCALSTACK_ACKNOWLEDGE_ACCOUNT_REQUIREMENT: 1
+      DISABLE_EVENTS: 1
+      SERVICES: s3
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    volumes:
+      - localstack-data:/var/lib/localstack
+
   eureka-server:
     build:
       context: ./eureka
@@ -58,10 +72,28 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${RESOURCE_DB_PASSWORD}
       SONG_SERVICE_URL: ${SONG_SERVICE_URL}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
     depends_on:
       - eureka-server
       - resource-db
       - song-service
+      - localstack
+
+  resource-processor:
+    build:
+      context: ./resource-processor
+      dockerfile: Dockerfile
+    ports:
+      - "8090:8090"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    depends_on:
+      - eureka-server
+      - resource-service
 
   song-service:
     build:
@@ -81,3 +113,5 @@ services:
       - eureka-server
       - song-db
 
+volumes:
+  localstack-data:
