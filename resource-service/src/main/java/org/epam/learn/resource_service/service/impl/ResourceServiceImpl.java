@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import org.epam.learn.resource_service.exception.ResourceNotFoundException;
+import org.epam.learn.resource_service.messaging.ResourceMessagePublisher;
 import org.epam.learn.resource_service.model.MetadataInfo;
 import org.epam.learn.resource_service.model.Mp3FileUrl;
 import org.epam.learn.resource_service.repository.ResourceRepository;
@@ -36,12 +37,15 @@ public class ResourceServiceImpl implements ResourceService {
     private final ResourceRepository resourceRepository;
     private final MetadataService metadataService;
     private final S3Service s3Service;
+    private final ResourceMessagePublisher messagePublisher;
 
 
-    public ResourceServiceImpl(ResourceRepository resourceRepository, MetadataService metadataService, S3Service s3Service) {
+    public ResourceServiceImpl(ResourceRepository resourceRepository, MetadataService metadataService,
+                               S3Service s3Service, ResourceMessagePublisher messagePublisher) {
         this.resourceRepository = resourceRepository;
         this.metadataService = metadataService;
         this.s3Service = s3Service;
+        this.messagePublisher = messagePublisher;
     }
 
     @Override
@@ -49,6 +53,7 @@ public class ResourceServiceImpl implements ResourceService {
     public Map<String, Long> upload(byte[] file) {
         Mp3FileUrl mp3FileUrl = s3Service.uploadFile(file);
         Mp3FileUrl savedToDb = resourceRepository.save(mp3FileUrl);
+        messagePublisher.publishResourceUploaded(savedToDb.getId());
         MetadataInfo metadataFromMp3File = metadataService.getMetadataFromMp3File(file);
         metadataFromMp3File.setId(savedToDb.getId());
         sendMetadata(metadataFromMp3File);
@@ -67,15 +72,23 @@ public class ResourceServiceImpl implements ResourceService {
     }
 
     @Override
+    @Transactional
     public Map<String, List<Long>> delete(List<String> fileIds) {
         Utility.validateStringIdsForDeletion(fileIds);
 
         List<Long> deleted = fileIds.stream()
                 .map(Long::parseLong)
                 .filter(resourceRepository::existsById)
-                .peek(id -> s3Service.deleteFile(resourceRepository.findById(id).get().getKey().toString()))
-                .peek(resourceRepository::deleteById)
                 .toList();
+
+        for (Long id : deleted) {
+            UUID key = resourceRepository.findById(id)
+                    .map(Mp3FileUrl::getKey)
+                    .orElseThrow(() -> new ResourceNotFoundException(String.format(RESOURCE_NOT_FOUND_MESSAGE, id)));
+
+            resourceRepository.deleteById(id);
+            s3Service.deleteFile(key.toString());
+        }
 
         deleteMetadata(deleted);
 
