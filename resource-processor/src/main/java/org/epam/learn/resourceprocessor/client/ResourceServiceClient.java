@@ -2,8 +2,10 @@ package org.epam.learn.resourceprocessor.client;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Component
 public class ResourceServiceClient {
@@ -13,6 +15,11 @@ public class ResourceServiceClient {
 
     private final RestClient restClient = RestClient.create();
 
+    @Retryable(includes = {RestClientException.class},
+            maxRetries = 3,
+            delay = 1000,
+            multiplier = 2
+    )
     public byte[] getResource(Long resourceId) {
         return restClient.get()
                 .uri(resourceServiceUrl + "/" + resourceId)
