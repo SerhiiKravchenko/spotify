@@ -1,4 +1,4 @@
-package org.epam.learn.resource_service.service.impl;
+package org.epam.learn.resourceprocessor.service.impl;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
@@ -7,12 +7,12 @@ import org.apache.tika.metadata.Metadata;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.mp3.Mp3Parser;
 import org.apache.tika.sax.BodyContentHandler;
-import org.epam.learn.resource_service.model.MetadataInfo;
-import org.epam.learn.resource_service.service.MetadataService;
+import org.epam.learn.resourceprocessor.model.SongMetadata;
+import org.epam.learn.resourceprocessor.service.MetadataExtractorService;
 import org.springframework.stereotype.Service;
 
 @Service
-public class MetadataServiceImpl implements MetadataService {
+public class MetadataExtractorServiceImpl implements MetadataExtractorService {
 
     private static final String TITLE_TAG = "dc:title";
     private static final String ARTIST_TAG = "xmpDM:artist";
@@ -23,31 +23,29 @@ public class MetadataServiceImpl implements MetadataService {
     private static final String DEFAULT_DURATION = "00:00";
 
     @Override
-    public MetadataInfo getMetadataFromMp3File(byte[] file) {
+    public SongMetadata extract(byte[] mp3File) {
         try {
             BodyContentHandler handler = new BodyContentHandler();
             Metadata metadata = new Metadata();
-            InputStream inputStream = new ByteArrayInputStream(file);
+            InputStream inputStream = new ByteArrayInputStream(mp3File);
             ParseContext pContext = new ParseContext();
 
-            Mp3Parser Mp3Parser = new Mp3Parser();
-            Mp3Parser.parse(inputStream, handler, metadata, pContext);
+            new Mp3Parser().parse(inputStream, handler, metadata, pContext);
 
-            return getMetadataInfo(metadata);
-
+            return toSongMetadata(metadata);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Failed to extract MP3 metadata", e);
         }
     }
 
-    private MetadataInfo getMetadataInfo(Metadata metadata) {
-        MetadataInfo metadataInfo = new MetadataInfo();
-        metadataInfo.setName(metadata.get(TITLE_TAG));
-        metadataInfo.setArtist(metadata.get(ARTIST_TAG));
-        metadataInfo.setAlbum(metadata.get(ALBUM_TAG));
-        metadataInfo.setDuration(formatDuration(metadata.get(DURATION_TAG)));
-        metadataInfo.setYear(metadata.get(RELEASE_DATE_TAG));
-        return metadataInfo;
+    private SongMetadata toSongMetadata(Metadata metadata) {
+        SongMetadata song = new SongMetadata();
+        song.setName(metadata.get(TITLE_TAG));
+        song.setArtist(metadata.get(ARTIST_TAG));
+        song.setAlbum(metadata.get(ALBUM_TAG));
+        song.setDuration(formatDuration(metadata.get(DURATION_TAG)));
+        song.setYear(metadata.get(RELEASE_DATE_TAG));
+        return song;
     }
 
     private String formatDuration(String duration) {

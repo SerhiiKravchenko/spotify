@@ -7,16 +7,13 @@ import java.util.UUID;
 
 import org.epam.learn.resource_service.exception.ResourceNotFoundException;
 import org.epam.learn.resource_service.messaging.ResourceMessagePublisher;
-import org.epam.learn.resource_service.model.MetadataInfo;
 import org.epam.learn.resource_service.model.Mp3FileUrl;
 import org.epam.learn.resource_service.repository.ResourceRepository;
-import org.epam.learn.resource_service.service.MetadataService;
 import org.epam.learn.resource_service.service.ResourceService;
 import org.epam.learn.resource_service.service.S3Service;
 import org.epam.learn.resource_service.utility.Utility;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.ParameterizedTypeReference;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestClient;
@@ -35,15 +32,13 @@ public class ResourceServiceImpl implements ResourceService {
     private String songsServiceUrl;
 
     private final ResourceRepository resourceRepository;
-    private final MetadataService metadataService;
     private final S3Service s3Service;
     private final ResourceMessagePublisher messagePublisher;
 
 
-    public ResourceServiceImpl(ResourceRepository resourceRepository, MetadataService metadataService,
+    public ResourceServiceImpl(ResourceRepository resourceRepository,
                                S3Service s3Service, ResourceMessagePublisher messagePublisher) {
         this.resourceRepository = resourceRepository;
-        this.metadataService = metadataService;
         this.s3Service = s3Service;
         this.messagePublisher = messagePublisher;
     }
@@ -54,9 +49,6 @@ public class ResourceServiceImpl implements ResourceService {
         Mp3FileUrl mp3FileUrl = s3Service.uploadFile(file);
         Mp3FileUrl savedToDb = resourceRepository.save(mp3FileUrl);
         messagePublisher.publishResourceUploaded(savedToDb.getId());
-        MetadataInfo metadataFromMp3File = metadataService.getMetadataFromMp3File(file);
-        metadataFromMp3File.setId(savedToDb.getId());
-        sendMetadata(metadataFromMp3File);
 
         return Map.of(SAVED_ID_KEY, savedToDb.getId());
     }
@@ -93,18 +85,6 @@ public class ResourceServiceImpl implements ResourceService {
         deleteMetadata(deleted);
 
         return Map.of(DELETED_ID_KEY, deleted);
-    }
-
-    private void sendMetadata(MetadataInfo metadataFromMp3File) {
-        RestClient restClient = RestClient.create();
-
-        restClient.post()
-                .uri(URI.create(songsServiceUrl))
-                .body(metadataFromMp3File)
-                .contentType(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .toEntity(new ParameterizedTypeReference<>() {
-                });
     }
 
     private void deleteMetadata(List<Long> deleted) {
