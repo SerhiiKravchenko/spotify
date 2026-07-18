@@ -3,8 +3,10 @@ package org.epam.learn.resourceprocessor.client;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.retry.RetryTemplate;
 import org.springframework.http.MediaType;
+import org.springframework.resilience.annotation.Retryable;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Component
 public class ResourceServiceClient {
@@ -19,6 +21,11 @@ public class ResourceServiceClient {
         this.retryTemplate = retryTemplate;
     }
 
+    @Retryable(includes = {RestClientException.class},
+            maxRetries = 3,
+            delay = 1000,
+            multiplier = 2
+    )
     public byte[] getResource(Long resourceId) {
         return retryTemplate.invoke(() ->
             restClient.get()
