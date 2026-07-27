@@ -1,9 +1,7 @@
 package org.epam.learn.resource_service.configuration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
-@Component
 @ConfigurationProperties(prefix = "aws.s3")
 public class S3Properties {
 

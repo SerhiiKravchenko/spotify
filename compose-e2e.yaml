@@ -1,0 +1,152 @@
+services:
+  resource-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${RESOURCE_DB_NAME}
+      POSTGRES_USER: ${RESOURCE_DB_USER}
+      POSTGRES_PASSWORD: ${RESOURCE_DB_PASSWORD}
+    ports:
+      - "5432"
+    volumes:
+      - ./init-scripts/resource-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${RESOURCE_DB_USER} -d ${RESOURCE_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  song-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${SONG_DB_NAME}
+      POSTGRES_USER: ${SONG_DB_USER}
+      POSTGRES_PASSWORD: ${SONG_DB_PASSWORD}
+    ports:
+      - "5433"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${SONG_DB_USER} -d ${SONG_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:4-management-alpine
+    ports:
+      - "5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  localstack:
+    image: localstack/localstack:3.8.1
+    ports:
+      - "4566"
+    environment:
+      SERVICES: s3
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:4566/_localstack/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+
+  eureka-server:
+    build:
+      context: ./eureka
+      dockerfile: Dockerfile
+    ports:
+      - "8761"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+
+  gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    ports:
+      - "8080"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
+      EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    depends_on:
+      - eureka-server
+
+  resource-service:
+    build:
+      context: ./resource-service
+      dockerfile: Dockerfile
+    ports:
+      - "8071"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://resource-db:5432/${RESOURCE_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${RESOURCE_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${RESOURCE_DB_PASSWORD}
+      SONG_SERVICE_URL: http://song-service:8072/songs
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    depends_on:
+      eureka-server:
+        condition: service_started
+      resource-db:
+        condition: service_healthy
+      song-service:
+        condition: service_started
+      localstack:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  resource-processor:
+    build:
+      context: ./resource-processor
+      dockerfile: Dockerfile
+    ports:
+      - "8090"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: ${RABBITMQ_USER}
+      RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      RESOURCE_SERVICE_URL: http://resource-service:8071/resources
+      SONG_SERVICE_URL: http://song-service:8072/songs
+    depends_on:
+      - eureka-server
+      - resource-service
+      - rabbitmq
+
+  song-service:
+    build:
+      context: ./song-service
+      dockerfile: Dockerfile
+    ports:
+      - "8082"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://song-db:5432/${SONG_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${SONG_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${SONG_DB_PASSWORD}
+    depends_on:
+      song-db:
+        condition: service_healthy
+      eureka-server:
+        condition: service_started

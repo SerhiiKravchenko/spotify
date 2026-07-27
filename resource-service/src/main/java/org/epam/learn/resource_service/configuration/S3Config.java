@@ -2,6 +2,7 @@ package org.epam.learn.resource_service.configuration;
 
 import java.net.URI;
 
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -11,6 +12,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 
 @Configuration
+@EnableConfigurationProperties(S3Properties.class)
 public class S3Config {
 
     private final S3Properties props;

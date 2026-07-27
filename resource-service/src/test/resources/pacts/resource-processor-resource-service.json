@@ -1,0 +1,80 @@
+{
+  "consumer": {
+    "name": "resource-processor"
+  },
+  "provider": {
+    "name": "resource-service"
+  },
+  "interactions": [
+    {
+      "description": "a request to download the MP3",
+      "providerStates": [
+        {"name": "a resource with ID 7 exists"}
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/resources/7"
+      },
+      "response": {
+        "status": 200,
+        "headers": {
+          "Content-Type": "audio/mpeg"
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "matchers": [{"match": "regex", "regex": "audio/mpeg.*"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    },
+    {
+      "description": "a request for a non-existent resource",
+      "providerStates": [
+        {"name": "no resource exists with ID 99"}
+      ],
+      "request": {
+        "method": "GET",
+        "path": "/resources/99"
+      },
+      "response": {
+        "status": 404,
+        "headers": {
+          "Content-Type": "application/json"
+        },
+        "body": {
+          "errorMessage": "Resource with ID=99 not found",
+          "errorCode": "404"
+        },
+        "matchingRules": {
+          "header": {
+            "Content-Type": {
+              "matchers": [{"match": "regex", "regex": "application/json.*"}],
+              "combine": "AND"
+            }
+          },
+          "body": {
+            "$.errorMessage": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            },
+            "$.errorCode": {
+              "matchers": [{"match": "type"}],
+              "combine": "AND"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "metadata": {
+    "pactSpecification": {
+      "version": "3.0.0"
+    },
+    "pact-jvm": {
+      "version": "4.6.14"
+    }
+  }
+}
