@@ -65,6 +65,11 @@ services:
     environment:
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   gateway:
     build:
@@ -77,8 +82,14 @@ services:
       EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
       EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     depends_on:
-      - eureka-server
+      eureka-server:
+        condition: service_healthy
 
   resource-service:
     build:
@@ -101,13 +112,18 @@ services:
       RABBITMQ_PORT: 5672
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8071/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     depends_on:
       eureka-server:
-        condition: service_started
+        condition: service_healthy
       resource-db:
         condition: service_healthy
       song-service:
-        condition: service_started
+        condition: service_healthy
       localstack:
         condition: service_healthy
       rabbitmq:
@@ -128,25 +144,38 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RESOURCE_SERVICE_URL: http://resource-service:8071/resources
       SONG_SERVICE_URL: http://song-service:8072/songs
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     depends_on:
-      - eureka-server
-      - resource-service
-      - rabbitmq
+      eureka-server:
+        condition: service_healthy
+      resource-service:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
   song-service:
     build:
       context: ./song-service
       dockerfile: Dockerfile
     ports:
-      - "8082"
+      - "8072"
     environment:
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       SPRING_DATASOURCE_URL: jdbc:postgresql://song-db:5432/${SONG_DB_NAME}
       SPRING_DATASOURCE_USERNAME: ${SONG_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${SONG_DB_PASSWORD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8072/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     depends_on:
       song-db:
         condition: service_healthy
       eureka-server:
-        condition: service_started
+        condition: service_healthy
