@@ -84,6 +84,29 @@ services:
       retries: 5
       start_period: 30s
 
+  config-server:
+    build:
+      context: ./config-server
+      dockerfile: Dockerfile
+    ports:
+      - "8888:8888"
+    environment:
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
+      EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
+      CONFIG_REPO_URI: ${CONFIG_REPO_URI:?}
+      CONFIG_REPO_BRANCH: ${CONFIG_REPO_BRANCH}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+
   gateway:
     build:
       context: ./gateway
@@ -91,6 +114,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
       EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
@@ -104,6 +128,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+      config-server:
+        condition: service_healthy
 
   resource-service:
     build:
@@ -112,6 +138,7 @@ services:
     ports:
       - "8071:8071"
     environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       SPRING_DATASOURCE_URL: ${RESOURCE_DB_URL}
       SPRING_DATASOURCE_USERNAME: ${RESOURCE_DB_USER}
@@ -135,6 +162,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+      config-server:
+        condition: service_healthy
       resource-db:
         condition: service_healthy
       song-service:
@@ -151,6 +180,7 @@ services:
     ports:
       - "8090:8090"
     environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
@@ -168,6 +198,8 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+      config-server:
+        condition: service_healthy
       resource-service:
         condition: service_healthy
       rabbitmq:
@@ -182,6 +214,7 @@ services:
     ports:
       - "8072-8073:8072"
     environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       SPRING_DATASOURCE_URL: ${SONG_DB_URL}
@@ -195,6 +228,8 @@ services:
       start_period: 30s
     depends_on:
       eureka-server:
+        condition: service_healthy
+      config-server:
         condition: service_healthy
       song-db:
         condition: service_healthy

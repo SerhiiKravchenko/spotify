@@ -18,6 +18,6 @@ WORKDIR /app
 
 COPY --from=build /app/target/*.jar app.jar
 
-EXPOSE 8071
+EXPOSE 8888
 
 CMD ["java", "-jar", "app.jar"]
