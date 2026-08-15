@@ -59,8 +59,9 @@ public class SongServiceImpl implements SongService {
         List<Long> deleted = resourceIds.stream()
                 .map(Long::parseLong)
                 .filter(songRepository::existsByResourceId)
-                .peek(songRepository::deleteByResourceId)
                 .toList();
+
+        deleted.forEach(songRepository::deleteByResourceId);
 
         return Map.of(DELETED_ID_KEY, deleted);
     }

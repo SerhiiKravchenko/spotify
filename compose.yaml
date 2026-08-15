@@ -33,6 +33,23 @@ services:
       retries: 5
       start_period: 10s
 
+  storage-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${STORAGE_DB_NAME}
+      POSTGRES_USER: ${STORAGE_DB_USER}
+      POSTGRES_PASSWORD: ${STORAGE_DB_PASSWORD}
+    ports:
+      - "5434:5432"
+    volumes:
+      - ./init-scripts/storage-db:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_USER} -d ${STORAGE_DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   rabbitmq:
     image: rabbitmq:4-management-alpine
     ports:
@@ -144,9 +161,9 @@ services:
       SPRING_DATASOURCE_USERNAME: ${RESOURCE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${RESOURCE_DB_PASSWORD}
       SONG_SERVICE_URL: ${SONG_SERVICE_URL}
+      STORAGE_SERVICE_URL: ${STORAGE_SERVICE_URL}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
@@ -167,6 +184,8 @@ services:
       resource-db:
         condition: service_healthy
       song-service:
+        condition: service_healthy
+      storage-service:
         condition: service_healthy
       localstack:
         condition: service_healthy
@@ -232,6 +251,39 @@ services:
       config-server:
         condition: service_healthy
       song-db:
+        condition: service_healthy
+
+  storage-service:
+    build:
+      context: ./storage-service
+      dockerfile: Dockerfile
+    ports:
+      - "8074:8074"
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      SPRING_DATASOURCE_URL: ${STORAGE_DB_URL}
+      SPRING_DATASOURCE_USERNAME: ${STORAGE_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${STORAGE_DB_PASSWORD}
+      AWS_S3_ENDPOINT: ${AWS_S3_ENDPOINT}
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8074/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      storage-db:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
 
 volumes:

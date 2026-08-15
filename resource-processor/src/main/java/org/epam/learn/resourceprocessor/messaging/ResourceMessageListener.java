@@ -23,13 +23,16 @@ public class ResourceMessageListener {
     private final ResourceServiceClient resourceServiceClient;
     private final MetadataExtractorService metadataExtractorService;
     private final SongServiceClient songServiceClient;
+    private final ResourceProcessedPublisher resourceProcessedPublisher;
 
     public ResourceMessageListener(ResourceServiceClient resourceServiceClient,
                                    MetadataExtractorService metadataExtractorService,
-                                   SongServiceClient songServiceClient) {
+                                   SongServiceClient songServiceClient,
+                                   ResourceProcessedPublisher resourceProcessedPublisher) {
         this.resourceServiceClient = resourceServiceClient;
         this.metadataExtractorService = metadataExtractorService;
         this.songServiceClient = songServiceClient;
+        this.resourceProcessedPublisher = resourceProcessedPublisher;
     }
 
     @RabbitListener(queues = "${rabbitmq.queue}", ackMode = "MANUAL")
@@ -45,6 +48,9 @@ public class ResourceMessageListener {
             channel.basicAck(tag, false);
 
             log.info("Saved song metadata for resourceId={}", message.resourceId());
+
+            resourceProcessedPublisher.publishResourceProcessed(message.resourceId());
+            log.info("Published resource processed event for resourceId={}", message.resourceId());
         } catch (IOException e) {
             try {
                 channel.basicReject(tag, false);

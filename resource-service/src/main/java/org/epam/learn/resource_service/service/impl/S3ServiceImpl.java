@@ -11,6 +11,7 @@ import org.springframework.stereotype.Service;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
@@ -30,30 +31,30 @@ public class S3ServiceImpl implements S3Service {
     }
 
     @Override
-    public Mp3FileUrl uploadFile(byte[] file) {
+    public Mp3FileUrl uploadFile(byte[] file, String bucket) {
         UUID key = UUID.randomUUID();
 
         retryTemplate.invoke(() -> s3Client.putObject(
                 PutObjectRequest.builder()
-                        .bucket(prop.getBucketName())
+                        .bucket(bucket)
                         .key(key.toString())
                         .contentType(CONTENT_TYPE_MPEG)
                         .build(),
                 RequestBody.fromBytes(file)
         ));
 
-        String url = buildFileUrl(key.toString());
+        String url = buildFileUrl(key.toString(), bucket);
 
         return new Mp3FileUrl(key, url);
     }
 
     @Override
-    public byte[] downloadFile(String key) {
+    public byte[] downloadFile(String key, String bucket) {
         return retryTemplate.invoke(() -> {
             try {
                 return s3Client.getObject(
                         GetObjectRequest.builder()
-                                .bucket(prop.getBucketName())
+                                .bucket(bucket)
                                 .key(key)
                                 .build()
                 ).readAllBytes();
@@ -64,16 +65,35 @@ public class S3ServiceImpl implements S3Service {
     }
 
     @Override
-    public void deleteFile(String key) {
+    public void deleteFile(String key, String bucket) {
         retryTemplate.invoke(() -> s3Client.deleteObject(
                 DeleteObjectRequest.builder()
-                        .bucket(prop.getBucketName())
+                        .bucket(bucket)
                         .key(key)
                         .build()
         ));
     }
 
-    private String buildFileUrl(String key) {
-        return prop.getEndpoint() + "/" + prop.getBucketName() + "/" + key;
+    @Override
+    public void moveFile(String key, String sourceBucket, String destinationBucket) {
+        retryTemplate.invoke(() -> s3Client.copyObject(
+                CopyObjectRequest.builder()
+                        .sourceBucket(sourceBucket)
+                        .sourceKey(key)
+                        .destinationBucket(destinationBucket)
+                        .destinationKey(key)
+                        .build()
+        ));
+
+        retryTemplate.invoke(() -> s3Client.deleteObject(
+                DeleteObjectRequest.builder()
+                        .bucket(sourceBucket)
+                        .key(key)
+                        .build()
+        ));
+    }
+
+    private String buildFileUrl(String key, String bucket) {
+        return prop.getEndpoint() + "/" + bucket + "/" + key;
     }
 }

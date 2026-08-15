@@ -10,7 +10,6 @@ import au.com.dius.pact.provider.junitsupport.State;
 import au.com.dius.pact.provider.junitsupport.loader.PactFolder;
 
 import org.epam.learn.resource_service.component.ComponentTestConfig;
-import org.epam.learn.resource_service.configuration.S3Properties;
 import org.epam.learn.resource_service.repository.ResourceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestTemplate;
@@ -26,16 +25,19 @@ import org.springframework.test.context.ContextConfiguration;
 
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Provider("resource-service")
 @PactFolder("src/test/resources/pacts")
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ContextConfiguration(initializers = ResourceServicePactProviderTest.ContainersInitializer.class)
-public class ResourceServicePactProviderTest {
+class ResourceServicePactProviderTest {
 
     private static final UUID RESOURCE_KEY = UUID.fromString("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa");
     private static final byte[] SAMPLE_MP3 = {(byte) 0xFF, (byte) 0xFB, (byte) 0x90, 0x00};
+    private static final String STAGING_BUCKET = "staging-bucket";
 
     static {
         if (!ComponentTestConfig.POSTGRES.isRunning()) ComponentTestConfig.POSTGRES.start();
@@ -53,9 +55,6 @@ public class ResourceServicePactProviderTest {
     private S3Client s3Client;
 
     @Autowired
-    private S3Properties s3Properties;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -71,22 +70,35 @@ public class ResourceServicePactProviderTest {
 
     @State("a resource with ID 7 exists")
     void setupResourceWithId7() {
+        createBucketIfMissing(STAGING_BUCKET);
         s3Client.putObject(
                 PutObjectRequest.builder()
-                        .bucket(s3Properties.getBucketName())
+                        .bucket(STAGING_BUCKET)
                         .key(RESOURCE_KEY.toString())
                         .contentType("audio/mpeg")
                         .build(),
                 RequestBody.fromBytes(SAMPLE_MP3)
         );
         jdbcTemplate.update(
-                "INSERT INTO urls (id, key, url) VALUES (7, ?::uuid, ?) "
-                        + "ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key, url = EXCLUDED.url",
+                "INSERT INTO urls (id, key, url, state, bucket, path) VALUES (7, ?::uuid, ?, ?, ?, ?) "
+                        + "ON CONFLICT (id) DO UPDATE SET key = EXCLUDED.key, url = EXCLUDED.url, "
+                        + "state = EXCLUDED.state, bucket = EXCLUDED.bucket, path = EXCLUDED.path",
                 RESOURCE_KEY.toString(),
                 ComponentTestConfig.localstackEndpoint()
-                        + "/" + s3Properties.getBucketName() + "/" + RESOURCE_KEY
+                        + "/" + STAGING_BUCKET + "/" + RESOURCE_KEY,
+                "STAGING",
+                STAGING_BUCKET,
+                "/files"
         );
         jdbcTemplate.execute("ALTER SEQUENCE IF EXISTS urls_id_seq RESTART WITH 100");
+    }
+
+    private void createBucketIfMissing(String bucket) {
+        try {
+            s3Client.createBucket(CreateBucketRequest.builder().bucket(bucket).build());
+        } catch (S3Exception e) {
+            // bucket already exists — ignore
+        }
     }
 
     @State("no resource exists with ID 99")
