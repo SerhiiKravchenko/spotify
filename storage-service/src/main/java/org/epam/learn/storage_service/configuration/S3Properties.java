@@ -1,4 +1,4 @@
-package org.epam.learn.resource_service.configuration;
+package org.epam.learn.storage_service.configuration;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
 

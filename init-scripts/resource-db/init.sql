@@ -3,5 +3,8 @@ DROP TABLE IF EXISTS urls;
 CREATE TABLE IF NOT EXISTS urls (
     id BIGSERIAL PRIMARY KEY,
     key UUID,
-    url VARCHAR(255)
+    url VARCHAR(255),
+    state VARCHAR(255),
+    bucket VARCHAR(255),
+    path VARCHAR(255)
 );

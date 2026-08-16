@@ -29,6 +29,22 @@ services:
       timeout: 5s
       retries: 10
 
+  storage-db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${STORAGE_DB_NAME}
+      POSTGRES_USER: ${STORAGE_DB_USER}
+      POSTGRES_PASSWORD: ${STORAGE_DB_PASSWORD}
+    ports:
+      - "5434"
+    volumes:
+      - ./init-scripts/storage-db:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${STORAGE_DB_USER} -d ${STORAGE_DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   rabbitmq:
     image: rabbitmq:4-management-alpine
     ports:
@@ -129,9 +145,9 @@ services:
       SPRING_DATASOURCE_USERNAME: ${RESOURCE_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${RESOURCE_DB_PASSWORD}
       SONG_SERVICE_URL: http://song-service:8072/songs
+      STORAGE_SERVICE_URL: http://storage-service:8074/storages
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
       AWS_S3_ENDPOINT: http://localstack:4566
-      AWS_S3_BUCKET: ${AWS_S3_BUCKET}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
       RABBITMQ_HOST: rabbitmq
@@ -151,6 +167,8 @@ services:
       resource-db:
         condition: service_healthy
       song-service:
+        condition: service_healthy
+      storage-service:
         condition: service_healthy
       localstack:
         condition: service_healthy
@@ -210,4 +228,36 @@ services:
       song-db:
         condition: service_healthy
       eureka-server:
+        condition: service_healthy
+
+  storage-service:
+    build:
+      context: ./storage-service
+      dockerfile: Dockerfile
+    ports:
+      - "8074"
+    environment:
+      CONFIG_SERVER_URL: http://config-server:8888
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      SPRING_DATASOURCE_URL: jdbc:postgresql://storage-db:5432/${STORAGE_DB_NAME}
+      SPRING_DATASOURCE_USERNAME: ${STORAGE_DB_USER}
+      SPRING_DATASOURCE_PASSWORD: ${STORAGE_DB_PASSWORD}
+      AWS_S3_ENDPOINT: http://localstack:4566
+      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8074/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      storage-db:
+        condition: service_healthy
+      localstack:
         condition: service_healthy

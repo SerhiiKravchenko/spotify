@@ -16,6 +16,9 @@ public class Mp3FileUrl {
     private Long id;
     private UUID key;
     private String url;
+    private String state;
+    private String bucket;
+    private String path;
 
     public Mp3FileUrl() {
     }
@@ -49,12 +52,39 @@ public class Mp3FileUrl {
         this.key = key;
     }
 
+    public String getState() {
+        return state;
+    }
+
+    public void setState(String state) {
+        this.state = state;
+    }
+
+    public String getBucket() {
+        return bucket;
+    }
+
+    public void setBucket(String bucket) {
+        this.bucket = bucket;
+    }
+
+    public String getPath() {
+        return path;
+    }
+
+    public void setPath(String path) {
+        this.path = path;
+    }
+
     @Override
     public String toString() {
         return "Mp3FileUrl{" +
                 "id=" + id +
                 ", key=" + key +
                 ", url='" + url + '\'' +
+                ", state='" + state + '\'' +
+                ", bucket='" + bucket + '\'' +
+                ", path='" + path + '\'' +
                 '}';
     }
 }

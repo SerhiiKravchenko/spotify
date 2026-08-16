@@ -10,4 +10,6 @@ public interface ResourceService {
     byte[] download(Long fileId);
 
     Map<String, List<Long>> delete(List<String> fileIds);
+
+    void markProcessed(Long resourceId);
 }
