@@ -85,6 +85,93 @@ services:
       retries: 5
       start_period: 30s
 
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - "9200:9200"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 60s
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.15.0
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./observability/logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./observability/logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+    environment:
+      LS_JAVA_OPTS: "-Xmx256m -Xms256m"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9600 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
+  prometheus:
+    image: prom/prometheus:v2.54.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    healthcheck:
+      test: ["CMD", "wget", "--tries=1", "--spider", "-q", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  grafana:
+    image: grafana/grafana:11.2.0
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:3000/api/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  zipkin:
+    image: openzipkin/zipkin:3.4
+    ports:
+      - "9411:9411"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:9411/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
   eureka-server:
     build:
       context: ./eureka
@@ -94,12 +181,19 @@ services:
     environment:
       EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
       interval: 10s
       timeout: 5s
       retries: 5
       start_period: 30s
+    depends_on:
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   config-server:
     build:
@@ -114,6 +208,8 @@ services:
       EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
       CONFIG_REPO_URI: ${CONFIG_REPO_URI:?}
       CONFIG_REPO_BRANCH: ${CONFIG_REPO_BRANCH}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8888/actuator/health"]
       interval: 10s
@@ -123,6 +219,10 @@ services:
     depends_on:
       eureka-server:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   gateway:
     build:
@@ -136,6 +236,8 @@ services:
       EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
       EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
       EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
       interval: 10s
@@ -147,6 +249,10 @@ services:
         condition: service_healthy
       config-server:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   resource-service:
     build:
@@ -170,6 +276,8 @@ services:
       RABBITMQ_PORT: ${RABBITMQ_PORT}
       RABBITMQ_USER: ${RABBITMQ_USER}
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8071/actuator/health"]
       interval: 10s
@@ -191,6 +299,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   resource-processor:
     build:
@@ -208,6 +320,8 @@ services:
       RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD}
       RESOURCE_SERVICE_URL: ${RESOURCE_SERVICE_URL}
       SONG_SERVICE_URL: ${SONG_SERVICE_URL}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8090/actuator/health"]
       interval: 10s
@@ -223,6 +337,10 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   song-service:
     build:
@@ -239,6 +357,8 @@ services:
       SPRING_DATASOURCE_URL: ${SONG_DB_URL}
       SPRING_DATASOURCE_USERNAME: ${SONG_DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${SONG_DB_PASSWORD}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8072/actuator/health"]
       interval: 10s
@@ -252,6 +372,10 @@ services:
         condition: service_healthy
       song-db:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
   storage-service:
     build:
@@ -270,6 +394,8 @@ services:
       AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8074/actuator/health"]
       interval: 10s
@@ -285,6 +411,13 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
 
 volumes:
   localstack-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:

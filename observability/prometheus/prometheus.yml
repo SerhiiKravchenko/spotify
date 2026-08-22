@@ -1,0 +1,48 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'dev'
+
+scrape_configs:
+  - job_name: 'gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['gateway:8080']
+        labels: { service: 'gateway' }
+
+  - job_name: 'resource-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['resource-service:8071']
+        labels: { service: 'resource-service' }
+
+  - job_name: 'resource-processor'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['resource-processor:8090']
+        labels: { service: 'resource-processor' }
+
+  - job_name: 'song-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['song-service:8072']
+        labels: { service: 'song-service' }
+
+  - job_name: 'storage-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['storage-service:8074']
+        labels: { service: 'storage-service' }
+
+  - job_name: 'eureka-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['eureka-server:8761']
+        labels: { service: 'eureka-server' }
+
+  - job_name: 'config-server'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['config-server:8888']
+        labels: { service: 'config-server' }
