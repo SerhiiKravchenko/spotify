@@ -87,10 +87,15 @@ services:
       - xpack.security.enabled=false
       - xpack.security.http.ssl.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      - cluster.routing.allocation.disk.threshold_enabled=false
     ports:
       - "9200:9200"
     volumes:
       - elasticsearch-data:/usr/share/elasticsearch/data
+    entrypoint:
+      - /bin/bash
+      - -c
+      - "find /usr/share/elasticsearch/data -mindepth 1 -delete 2>/dev/null; exec /usr/local/bin/docker-entrypoint.sh eswrapper"
     healthcheck:
       test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health | grep -qv '\"status\":\"red\"'"]
       interval: 15s
@@ -444,6 +449,45 @@ services:
       localstack:
         condition: service_healthy
       auth-server:
+        condition: service_healthy
+      logstash:
+        condition: service_started
+      zipkin:
+        condition: service_started
+
+  ui-service:
+    build:
+      context: ./ui-service
+      dockerfile: Dockerfile
+    environment:
+      CONFIG_SERVER_URL: ${CONFIG_SERVER_URL}
+      EUREKA_HOSTNAME: ${EUREKA_HOSTNAME}
+      EUREKA_PREFER_IP_ADDRESS: ${EUREKA_PREFER_IP_ADDRESS}
+      EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS: ${EUREKA_LEASE_RENEWAL_INTERVAL_SECONDS}
+      EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS: ${EUREKA_REGISTRY_FETCH_INTERVAL_SECONDS}
+      AUTH_SERVER_AUTHORIZATION_URI: http://localhost:8080/oauth2/authorize
+      AUTH_SERVER_TOKEN_URI: http://gateway:8080/oauth2/token
+      AUTH_SERVER_JWK_SET_URI: http://gateway:8080/oauth2/jwks
+      AUTH_SERVER_USERINFO_URI: http://gateway:8080/userinfo
+      STORAGE_API_URL: ${UI_STORAGE_API_URL}
+      LOGSTASH_HOST: ${LOGSTASH_HOST}
+      ZIPKIN_HOST: ${ZIPKIN_HOST}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/ui/actuator/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    depends_on:
+      eureka-server:
+        condition: service_healthy
+      config-server:
+        condition: service_healthy
+      auth-server:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+      storage-service:
         condition: service_healthy
       logstash:
         condition: service_started

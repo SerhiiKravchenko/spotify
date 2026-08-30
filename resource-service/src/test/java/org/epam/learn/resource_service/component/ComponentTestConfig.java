@@ -75,6 +75,7 @@ public class ComponentTestConfig {
                     "spring.rabbitmq.host=" + RABBITMQ.getHost(),
                     "spring.rabbitmq.port=" + RABBITMQ.getAmqpPort(),
                     "eureka.client.enabled=false",
+                    "app.security.enabled=false",
                     "spring.main.allow-bean-definition-overriding=true"
             ).applyTo(context);
         }

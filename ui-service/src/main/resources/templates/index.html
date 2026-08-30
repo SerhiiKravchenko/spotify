@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <title>Storage administration</title>
+    <style>
+        :root { color-scheme: light; }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; padding: 2rem;
+               background: #f5f6f8; color: #1c1e21; }
+        header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 1rem;
+                 border-bottom: 1px solid #d0d3d8; padding-bottom: 1rem; margin-bottom: 1.5rem; }
+        h1 { margin: 0; font-size: 1.5rem; }
+        h2 { font-size: 1.15rem; margin: 2rem 0 0.75rem; }
+        .user { font-size: 0.9rem; display: flex; align-items: center; gap: 0.75rem; }
+        .badge { background: #2f6fed; color: #fff; border-radius: 999px; padding: 0.15rem 0.6rem; font-size: 0.75rem;
+                 letter-spacing: 0.03em; }
+        table { border-collapse: collapse; width: 100%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+                border-radius: 8px; overflow: hidden; }
+        th, td { text-align: left; padding: 0.65rem 0.9rem; border-bottom: 1px solid #eceef1; }
+        th { background: #fafbfc; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7076; }
+        tr:last-child td { border-bottom: none; }
+        td.empty { text-align: center; color: #8a9099; padding: 1.5rem; }
+        form.inline { display: inline; margin: 0; }
+        button { font: inherit; padding: 0.4rem 0.9rem; border-radius: 6px; border: 1px solid #c3c7cd;
+                 background: #fff; color: #1c1e21; cursor: pointer; }
+        button.primary { background: #2f6fed; border-color: #2f6fed; color: #fff; }
+        button.danger { background: #fff; border-color: #d9534f; color: #d9534f; }
+        .card { background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); border-radius: 8px; padding: 1.25rem;
+                margin-top: 1rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; align-items: end; }
+        label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; color: #4b5058; }
+        input { font: inherit; padding: 0.45rem 0.6rem; border: 1px solid #c3c7cd; border-radius: 6px; }
+        .alert { padding: 0.7rem 1rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.9rem; }
+        .alert.success { background: #e6f4ea; color: #1e4620; border: 1px solid #b7dfc2; }
+        .alert.error { background: #fdecea; color: #611a15; border: 1px solid #f5c6c0; }
+        .note { color: #6b7076; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>Storages</h1>
+    <div class="user">
+        <span th:text="'Signed in as ' + ${username}">Signed in as user</span>
+        <span class="badge" th:text="${isAdmin} ? 'ADMIN' : 'USER'">USER</span>
+        <form class="inline" th:action="@{/logout}" method="post">
+            <button type="submit">Log out</button>
+        </form>
+    </div>
+</header>
+
+<div class="alert success" th:if="${message}" th:text="${message}">ok</div>
+<div class="alert error" th:if="${error}" th:text="${error}">error</div>
+
+<table>
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Storage type</th>
+        <th>Bucket</th>
+        <th>Path</th>
+        <th th:if="${isAdmin}">Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+    <tr th:each="storage : ${storages}">
+        <td th:text="${storage.id}">1</td>
+        <td th:text="${storage.storageType}">STAGING</td>
+        <td th:text="${storage.bucket}">staging-bucket</td>
+        <td th:text="${storage.path}">/files</td>
+        <td th:if="${isAdmin}">
+            <form class="inline" th:action="@{'/storages/' + ${storage.id} + '/delete'}" method="post"
+                  th:onsubmit="|return confirm('Delete storage entry ${storage.id}?')|">
+                <button type="submit" class="danger">Delete</button>
+            </form>
+        </td>
+    </tr>
+    <tr th:if="${#lists.isEmpty(storages)}">
+        <td class="empty" th:colspan="${isAdmin} ? 5 : 4">No storage entries yet.</td>
+    </tr>
+    </tbody>
+</table>
+
+<section th:if="${isAdmin}" class="card">
+    <h2>Add storage entry</h2>
+    <form th:action="@{/storages}" th:object="${storageForm}" method="post" class="grid">
+        <label>Storage type
+            <input type="text" th:field="*{storageType}" required placeholder="e.g. STAGING"/>
+        </label>
+        <label>Bucket
+            <input type="text" th:field="*{bucket}" required placeholder="e.g. staging-bucket"/>
+        </label>
+        <label>Path
+            <input type="text" th:field="*{path}" required placeholder="e.g. /files"/>
+        </label>
+        <button type="submit" class="primary">Create</button>
+    </form>
+</section>
+
+<p th:unless="${isAdmin}" class="note">
+    You have read-only access. Contact an administrator to add or remove storage entries.
+</p>
+</body>
+</html>
