@@ -36,11 +36,17 @@ public class StorageServiceClient {
     @Value("${storage-service.api.url}")
     private String storageServiceUrl;
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final RetryTemplate retryTemplate;
 
-    public StorageServiceClient(RetryTemplate retryTemplate) {
+    public StorageServiceClient(RetryTemplate retryTemplate, ServiceTokenProvider tokenProvider) {
         this.retryTemplate = retryTemplate;
+        this.restClient = RestClient.builder()
+                .requestInterceptor((request, body, execution) -> {
+                    request.getHeaders().setBearerAuth(tokenProvider.getToken());
+                    return execution.execute(request, body);
+                })
+                .build();
     }
 
     @CircuitBreaker(name = CIRCUIT_BREAKER, fallbackMethod = "getStagingFallback")

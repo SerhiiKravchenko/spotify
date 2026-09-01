@@ -1,0 +1,23 @@
+FROM maven:4.0.0-rc-5-sapmachine-21 AS build
+
+WORKDIR /app
+
+COPY pom.xml .
+
+RUN mvn dependency:go-offline -B
+
+COPY src ./src
+
+RUN mvn clean package -Dmaven.test.skip=true
+
+FROM eclipse-temurin:21-jre-noble
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=build /app/target/*.jar app.jar
+
+EXPOSE 9000
+
+CMD ["java", "-jar", "app.jar"]

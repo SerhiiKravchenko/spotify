@@ -120,6 +120,7 @@ class ResourceServicePactProviderTest {
                     "spring.rabbitmq.host=" + ComponentTestConfig.RABBITMQ.getHost(),
                     "spring.rabbitmq.port=" + ComponentTestConfig.RABBITMQ.getAmqpPort(),
                     "eureka.client.enabled=false",
+                    "app.security.enabled=false",
                     "spring.main.allow-bean-definition-overriding=true"
             ).applyTo(context);
         }

@@ -22,11 +22,17 @@ public class SongServiceClient {
     @Value("${song-service.api.url}")
     private String songServiceUrl;
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final RetryTemplate retryTemplate;
 
-    public SongServiceClient(RetryTemplate retryTemplate) {
+    public SongServiceClient(RetryTemplate retryTemplate, ServiceTokenProvider tokenProvider) {
         this.retryTemplate = retryTemplate;
+        this.restClient = RestClient.builder()
+                .requestInterceptor((request, body, execution) -> {
+                    request.getHeaders().setBearerAuth(tokenProvider.getToken());
+                    return execution.execute(request, body);
+                })
+                .build();
     }
 
     public void deleteSongs(List<Long> ids) {
